@@ -1,0 +1,88 @@
+from flask import Flask, request, jsonify
+import joblib
+import numpy as np
+
+app = Flask(__name__)
+
+# Ladda modellen och scaler med joblib med pca
+pca = joblib.load("exportpca.joblib")
+scaler = joblib.load("scaler.joblib")
+model = joblib.load("exportmodel.joblib")
+
+
+# Definiera en endpoint för prediktion
+@app.route("/predict", methods=["POST"]) 
+def predict():
+    try:
+        data = request.get_json()
+        features = data.get("features")
+
+        if features is None:
+            return jsonify({"error": "Missing 'features' in request"}), 400
+
+        # Kontrollera formatet (en rad eller flera)
+        if isinstance(features[0], (int, float)):
+            features_array = np.array(features).reshape(1, -1)
+        else:
+            features_array = np.array(features)
+
+        # Skala och PCA-transformera
+        new_data_scaled = scaler.transform(features_array)
+        new_data_pca = pca.transform(new_data_scaled)
+
+        # Prediktion
+        prediction = model.predict(new_data_pca)
+
+        # Gör resultat per rad (ifall flera rader skickas)
+        results = []
+        for i, pred in enumerate(prediction):
+            
+            results.append({
+                "prediction": int(pred),
+                "label": "Benign 😊" if pred == 1 else "Malignant 😟",
+                "Test_number": i + 1
+                
+                
+            })
+
+        return jsonify({"Results av test med skalning, PCA och Logistic Regression Modell": results})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+
+@app.route("/info", methods=["GET"])
+def info():
+    try:
+        return jsonify({
+            "model": "Logistic Regression",
+            "num_features": scaler.mean_.shape[0],
+            "pca_components": pca.n_components_,
+            "description": "Predicts if a tumor is Benign or Malignant"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/test", methods=["GET"])
+def test():
+    return jsonify({"message": "API is running!"})
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
+
+
+
+"""
+ # Exempel på testdata för att testa endpointen
+ {
+  "features":[
+      [10.420,20.38, 77.58,386.1,0.14250, 0.28390,0.241400, 0.105200, 0.2597, 0.09744, 0.4956,1.1560,3.4450,27.230,0.009110,0.074580,0.056610,0.018670,0.059630,0.009208,14.910,26.50,98.87,567.7,0.20980,0.86630,0.686900,0.257500,0.6638,0.17300],
+      [12.880,28.92,82.50,514.3,0.08123,0.05824,0.061950,0.023430,0.1566,0.05708,0.2116,1.3600,1.5020,16.830,0.008412,0.021530,0.038980,0.007620,0.016950,0.002801,13.890,35.74,88.84,595.7,0.12270,0.16200,0.243900,0.064930,0.2372,0.07242],
+      [9.333,21.94,59.01,264.0,0.09240,0.05605,0.039960,0.012820,0.1692,0.06576,0.3013,1.8790,2.1210,17.860,0.010940,0.018340,0.039960,0.012820,0.037590,0.004623,9.845,25.05,62.86,295.8,0.11030,0.08298,0.079930,0.025640,0.2435,0.07393],
+      [13.030,18.42,82.61,523.8,0.08983,0.03766,0.025620,0.029230,0.1467,0.05863,0.1839,2.3420,1.1700,14.160,0.004352,0.004899,0.013430,0.011640,0.026710,0.001777,13.300,22.81,84.46,545.9,0.09701,0.04619,0.048330,0.050130,0.1987,0.06169],
+      [17.020,23.98,112.80,899.3,0.11970,0.14960,0.241700,0.120300,0.2248,0.06382,0.6009,1.3980,3.9990,67.780,0.008268,0.030820,0.050420,0.011120,0.021020,0.003854,20.880,32.09,136.10,1344.0,0.16340,0.35590,0.558800,0.184700,0.3530,0.08482],
+      [9.504,12.44,60.34,273.9,0.10240,0.06492,0.029560,0.020760,0.1815,0.06905,0.2773,0.9768,1.9090,15.700,0.009606,0.014320,0.019850,0.014210,0.020270,0.002968,10.230,15.66,65.13,314.9,0.13240,0.11480,0.088670,0.062270,0.2450,0.07773]]
+}
+ """
