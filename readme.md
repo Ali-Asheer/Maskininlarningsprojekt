@@ -22,6 +22,8 @@ Den specifika uppgiften är att klassificera om en tumör är elakartad eller go
 The REST API endpoints are available at:
 
 ```bash
+
+Run python app (app1.py) and use postman to test this url:
 http://localhost:5000/predict
 
 And json post format like this :
